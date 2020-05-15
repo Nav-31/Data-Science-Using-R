@@ -1,0 +1,103 @@
+---
+title: "Getting and cleaning Data Course Project"
+author: "Hariharan"
+output:
+  pdf_document: default
+  keep_md: yes
+---
+
+This PDF contains the code and output generated for Programming assignment in the course
+Find the Programming_Asignment.Rmd in the same folder as this file to interact with the code and make changes for a better learning experience
+The link to the final Github repository used for this project submission can be found [here](https://github.com/hari9-9/Getting-and-cleaning-data) https://github.com/hari9-9/Getting-and-cleaning-data
+
+place the required files in the same directoriy as the .R file
+
+# Loading Data
+```{r}
+#loading the activity data
+activity_test<-read.table("Y_test.txt",header=FALSE)
+activity_train<-read.table("Y_train.txt",header=FALSE)
+
+#loading the subject data
+sub_train<-read.table("subject_train.txt",header = FALSE)
+sub_test<-read.table("subject_test.txt",header = FALSE)
+
+#loading features data
+features_test<-read.table("X_test.txt",header = FALSE)
+features_train<-read.table("X_train.txt",header = FALSE)
+```
+
+# merging test and train data by row using rbind()
+```{r}
+subject_merged<-rbind(sub_train,sub_test)
+activity_merged<-rbind(activity_train,activity_test)
+features_merged<-rbind(features_train,features_test)
+```
+
+# Setting names
+```{r}
+#setting names
+names(subject_merged)<-c("subject")
+names(activity_merged)<-c("activity")
+features_name<-read.table("features.txt",header = FALSE)
+head(features_name)
+names(features_merged)<- features_name$V2
+```
+
+# Viewing Dataset
+
+```{r}
+head(subject_merged)
+head(activity_merged)
+#head(features_merged)
+```
+
+# merge all the data
+```{r}
+data_combine<-cbind(subject_merged,activity_merged)
+complete_data<-cbind(data_combine,features_merged)
+#head(complete_data)
+```
+
+# filter by names for mean and standard deviation columns
+```{r}
+subdataFeaturesNames<-features_name$V2[grep("mean\\(\\)|std\\(\\)", features_name$V2)]
+selectedNames<-c(as.character(subdataFeaturesNames), "subject", "activity" )
+filtered_data<-subset(complete_data,select=selectedNames)
+
+```
+# labeling activities
+
+```{r}
+filtered_data$activity <- factor(filtered_data$activity, labels= c("WALKING", "WALKING_UPSTAIRS", "WALKING_DOWNSTAIRS", "SITTING", "STANDING", "LAYING"))
+#head(filtered_data)
+```
+
+# Setting descreptive variable names
+
+```{r}
+names(filtered_data)<-gsub("^t", "time", names(filtered_data))
+names(filtered_data)<-gsub("^f", "frequency", names(filtered_data))
+names(filtered_data)<-gsub("Acc", "Accelerometer", names(filtered_data))
+names(filtered_data)<-gsub("Gyro", "Gyroscope", names(filtered_data))
+names(filtered_data)<-gsub("Mag", "Magnitude", names(filtered_data))
+names(filtered_data)<-gsub("BodyBody", "Body", names(filtered_data))
+names(filtered_data)
+```
+
+# Forming independent dataset to get aggregate of each subject during each activity
+```{r}
+library(plyr)
+Data_agg<-aggregate(. ~subject + activity, filtered_data, mean)
+Data_agg<-Data_agg[order(Data_agg$subject,Data_agg$activity),]
+
+```
+
+
+
+# Storing results in a textfile
+```{r}
+write.table(Data_agg, file = "tidydata.txt",row.name=FALSE)
+```
+
+
