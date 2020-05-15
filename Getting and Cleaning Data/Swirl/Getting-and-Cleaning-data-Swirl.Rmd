@@ -1,0 +1,447 @@
+---
+title: "Getting and cleaning Data Swirl exercises"
+author: "Hariharan"
+output:
+  pdf_document: default
+  keep_md: yes
+---
+This PDF contains the code and output generated for swirl exercises in the course
+Find the Getting-and-cleaning-data-swirl.Rmd in the same folder as this file to interact with the code and make changes for a better learning experience
+
+# 1. Manipulating Data with dplyr
+
+## Setting up the environment
+
+```{r}
+path2csv<-"C:/Users/MAHE/Documents/R/win-library/3.6/swirl/Courses/Getting_and_Cleaning_Data/Manipulating_Data_with_dplyr/2014-07-08.csv"
+mydf <- read.csv(path2csv, stringsAsFactors = FALSE)
+dim(mydf)
+head(mydf)
+# loading dplyr
+library(dplyr)
+packageVersion("dplyr")
+```
+ The first step of working with data in dplyr is to load the data into what the package authors call a 'data frame tbl' or 'tbl_df'. Use the following code to create a new tbl_df called cran:
+ 
+ 
+```{r}
+cran <- tbl_df(mydf)
+rm("mydf")
+cran
+```
+## using select
+ 
+```{r}
+select(cran, ip_id, package, country)
+select(cran, r_arch:country)
+select(cran, -time)
+select(cran, -(X:size))
+```
+## using filter
+```{r}
+filter(cran, package == "swirl")
+filter(cran, r_version == "3.1.1", country == "US")
+filter(cran, r_version <= "3.0.2", country == "IN")
+filter(cran, country == "US" | country == "IN")
+filter(cran, size > 100500, r_os == "linux-gnu")
+filter(cran, !is.na(r_version))
+```
+## using arrange
+
+```{r}
+cran2 <- select(cran, size:ip_id)
+arrange(cran2, ip_id)#ip_id is in ascending order
+arrange(cran2, desc(ip_id))#To do the same, but in descending order
+arrange(cran2, package, ip_id)# first arrange by package names (ascending alphabetically), then by ip_id
+arrange(cran2, country, desc(r_version), ip_id)
+```
+
+## using mutate
+
+```{r}
+cran3 <- select(cran, ip_id, package, size)
+mutate(cran3, size_mb = size / 2^20)
+mutate(cran3, size_mb = size / 2^20, size_gb = size_mb / 2^10)
+mutate(cran3, correct_size = size + 1000)
+```
+
+
+## using summarize
+```{r}
+summarize(cran, avg_bytes = mean(size))
+
+```
+
+# 2. Grouping and Chaining with dplyr
+
+## Setting up the environment
+
+```{r}
+path2csv<-"C:/Users/MAHE/Documents/R/win-library/3.6/swirl/Courses/Getting_and_Cleaning_Data/Manipulating_Data_with_dplyr/2014-07-08.csv"
+mydf <- read.csv(path2csv, stringsAsFactors = FALSE)
+dim(mydf)
+head(mydf)
+# loading dplyr
+library(dplyr)
+packageVersion("dplyr")
+cran <- tbl_df(mydf)
+```
+## using group-by
+
+```{r}
+by_package <- group_by(cran, package)
+by_package
+summarize(by_package, mean(size))
+```
+```{r}
+pack_sum <- summarize(by_package,
+                      count = n(),
+                      unique = n_distinct(ip_id),
+                      countries = n_distinct(country),
+                      avg_bytes = mean(size))
+pack_sum
+
+```
+
+The 'count' column, created with n(), contains the total number of rows (i.e.downloads) for each package. The 'unique' column, created with n_distinct(ip_id), gives the total number of unique downloads for each
+package, as measured by the number of distinct ip_id's. The 'countries'
+column, created with n_distinct(country), provides the number of countries in which each package was downloaded. And finally, the 'avg_bytes' column, created with mean(size), contains the mean download size (in bytes) for each package.
+
+ Naturally, we'd like to know which packages were most popular on the day these data were collected (July 8, 2014). Let's start by isolating the top 1% of packages, based on the total number of downloads as measured by the 'count' column.
+```{r}
+quantile(pack_sum$count, probs = 0.99)
+top_counts <- filter(pack_sum, count > 679)
+top_counts
+View(top_counts)
+top_counts_sorted <- arrange(top_counts, desc(count))
+top_counts_sorted
+```
+```{r}
+quantile(pack_sum$unique, probs = 0.99)
+top_unique <- filter(pack_sum, unique > 465)
+top_unique_sorted <- arrange(top_unique, desc(unique))
+top_unique_sorted
+```
+## Chaining
+```{r}
+by_package <- group_by(cran, package)
+pack_sum <- summarize(by_package,
+                      count = n(),
+                      unique = n_distinct(ip_id),
+                      countries = n_distinct(country),
+                      avg_bytes = mean(size))
+top_countries <- filter(pack_sum, countries > 60)
+result1 <- arrange(top_countries, desc(countries), avg_bytes)
+print(result1)
+```
+## Same operations as above but using function call embedding
+```{r}
+result2 <-
+  arrange(
+    filter(
+      summarize(
+        group_by(cran,
+                 package
+        ),
+        count = n(),
+        unique = n_distinct(ip_id),
+        countries = n_distinct(country),
+        avg_bytes = mean(size)
+      ),
+      countries > 60
+    ),
+    desc(countries),
+    avg_bytes
+  )
+
+print(result2)
+```
+In this script, we've used a special chaining operator, %>%
+```{r}
+# you read it, you can pronounce the %>% operator as
+# the word 'then'.
+
+result3 <-
+  cran %>%
+  group_by(package) %>%
+  summarize(count = n(),
+            unique = n_distinct(ip_id),
+            countries = n_distinct(country),
+            avg_bytes = mean(size)
+  ) %>%
+  filter(countries > 60) %>%
+  arrange(desc(countries), avg_bytes)
+
+# Print result to console
+print(result3)
+```
+```{r}
+# select() the following columns from cran. Keep in mind
+# that when you're using the chaining operator, you don't
+# need to specify the name of the data tbl in your call to
+# select().
+#
+# 1. ip_id
+# 2. country
+# 3. package
+# 4. size
+#
+# The call to print() at the end of the chain is optional,
+# but necessary if you want your results printed to the
+# console. Note that since there are no additional arguments
+# to print(), you can leave off the parentheses after
+# the function name. This is a convenient feature of the %>%
+# operator.
+
+cran %>%
+  select(ip_id, country, package, size) %>%
+	print
+
+
+# Use mutate() to add a column called size_mb that contains
+# the size of each download in megabytes (i.e. size / 2^20).
+#
+# If you want your results printed to the console, add
+# print to the end of your chain.
+
+cran %>%
+  select(ip_id, country, package, size) %>%
+  mutate(size_mb = size / 2^20)
+
+# Use filter() to select all rows for which size_mb is
+# less than or equal to (<=) 0.5.
+#
+# If you want your results printed to the console, add
+# print to the end of your chain.
+
+cran %>%
+  select(ip_id, country, package, size) %>%
+  mutate(size_mb = size / 2^20) %>%
+  filter(size_mb <= 0.5)
+
+
+# arrange() the result by size_mb, in descending order.
+#
+# If you want your results printed to the console, add
+# print to the end of your chain.
+
+cran %>%
+  select(ip_id, country, package, size) %>%
+  mutate(size_mb = size / 2^20) %>%
+  filter(size_mb <= 0.5) %>%
+  arrange(desc(size_mb))
+
+```
+
+
+# 3.Tidying Data with tidyr
+
+## Setting up 
+```{r}
+library(tidyr)
+# recreating dataset usend in lesson
+students<- data.frame("grade" =c('A','B','C','D','E') , "male" = as.integer(c(5,4,8,4,5)), "female" = as.integer(c(3,1,6,5,5)))
+
+students
+
+```
+```{r}
+gather(students, sex, count, -grade)
+```
+
+```{r}
+students2<- data.frame("grade" =c('A','B','C','D','E') , "male_1" = as.integer(c(7,4,7,8,8)), "female_1" = as.integer(c(0,0,4,2,4)),"male_2" = as.integer(c(5,5,5,8,1)), "female_2" = as.integer(c(8,8,6,1,0)))
+
+students2
+```
+```{r}
+res <- gather(students2, sex_class, count, -grade)
+res
+separate(res, sex_class, c("sex", "class"))
+```
+## using chaining
+```{r}
+students2 %>%
+  gather(sex_class, count, -grade) %>%
+  separate(sex_class, c("sex", "class")) %>%
+  print
+```
+
+```{r}
+students3<- data.frame(
+  "name" = c("Sally","Sally","Jeff","Jeff","Roger","Roger","Karen","Karen","Brian","Brian"),
+  "test" = c("midterm","final","midterm","final","midterm","final","midterm","final","midterm","final"),
+  "class1" = c("A","C",NA,NA,NA,NA,NA,NA,"B","B"),
+  "class2" = c(NA,NA,"D","E","C","A",NA,NA,NA,NA),
+  "class3" = c("B","C",NA,NA,NA,NA,"C","C",NA,NA),
+  "class5" = c(NA,NA,NA,NA,"B","A",NA,NA,"A","C"),
+  stringsAsFactors = FALSE
+)
+students3
+```
+```{r}
+# Call gather() to gather the columns class1
+# through class5 into a new variable called class.
+# The 'key' should be class, and the 'value'
+# should be grade.
+#
+# tidyr makes it easy to reference multiple adjacent
+# columns with class1:class5, just like with sequences
+# of numbers.
+#
+# Since each student is only enrolled in two of
+# the five possible classes, there are lots of missing
+# values (i.e. NAs). Use the argument na.rm = TRUE
+# to omit these values from the final result.
+#
+# Remember that when you're using the %>% operator,
+# the value to the left of it gets inserted as the
+# first argument to the function on the right.
+#
+# Consult ?gather and/or ?chain if you get stuck.
+#
+students3 %>%
+  gather(class, grade, class1:class5, na.rm = TRUE) %>%
+  print
+
+```
+```{r}
+# This script builds on the previous one by appending
+# a call to spread(), which will allow us to turn the
+# values of the test column, midterm and final, into
+# column headers (i.e. variables).
+#
+# You only need to specify two arguments to spread().
+# Can you figure out what they are? (Hint: You don't
+# have to specify the data argument since we're using
+# the %>% operator.
+#
+students3 %>%
+  gather(class, grade, class1:class5, na.rm = TRUE) %>%
+  spread(test, grade) %>%
+  print
+```
+```{r}
+library(readr)
+parse_number("class5")
+```
+
+```{r}
+# We want the values in the class columns to be
+# 1, 2, ..., 5 and not class1, class2, ..., class5.
+#
+# Use the mutate() function from dplyr along with
+# parse_number(). Hint: You can "overwrite" a column
+# with mutate() by assigning a new value to the existing
+# column instead of creating a new column.
+#
+# Check out ?mutate and/or ?parse_number if you need
+# a refresher.
+#
+students3 %>%
+  gather(class, grade, class1:class5, na.rm = TRUE) %>%
+  spread(test, grade) %>%
+  mutate(class = parse_number(class)) %>%
+  print
+```
+
+```{r}
+students4 <- data.frame(
+  "id" = as.integer(c(168,168,588,588,710,710,731,731,908,908)),
+  "name" = c("Brian","Brian","Sally","Sally","Jeff","Jeff","Roger","Roger","Karen","Karen"),
+  "sex" = c("F","F","M","M","M","M","F","F","M","M"),
+  "class" = as.integer(c(1,5,1,3,2,4,2,5,3,4)),
+  "midterm" = c("B","A","A","B","D","A","C","B","C","A"),
+  "final" = c("B","C","C","C","E","C","A","A","C","A"),
+  stringsAsFactors = FALSE
+  
+)
+students4
+```
+```{r}
+# selecting the id, name, and sex column from students4
+# and storing the result in student_info.
+#
+student_info <- students4 %>%
+  select(id, name, sex) %>%
+  print
+# Add a call to unique() below, which will remove
+# duplicate rows from student_info.
+#
+# Like with the call to the print() function below,
+# you can omit the parentheses after the function name.
+# This is a nice feature of %>% that applies when
+# there are no additional arguments to specify.
+#
+student_info <- students4 %>%
+  select(id, name, sex) %>%
+  unique %>%
+  print
+
+# select() the id, class, midterm, and final columns
+# (in that order) and store the result in gradebook.
+#
+gradebook <- students4 %>%
+  select(id, class, midterm, final) %>%
+  print
+```
+
+```{r}
+passed<- data.frame(
+  "name" = c("Brian","Roger","Roger","Karen"),
+  "class" = as.integer(c(1,2,5,4)),
+  "final" = c("B","A","A","A"),
+  stringsAsFactors = FALSE
+  )
+failed <- data.frame(
+  "name" = c("Brian","Sally","Sally","Jeff","Jeff","Karen"),
+  "class" = as.integer(c(5,1,3,2,4,3)),
+  "final" = c("C","C","C","E","C","C"),
+   stringsAsFactors = FALSE
+)
+passed
+failed
+```
+```{r}
+passed <- passed %>% mutate(status = "passed")
+failed <- failed %>% mutate(status = "failed")
+bind_rows(passed, failed)
+ 
+```
+
+# 4. Dates and Times with lubridate
+
+```{r}
+library(lubridate)
+this_day <- today()
+this_day
+month(this_day)
+wday(this_day)
+wday(this_day, label = TRUE)
+this_moment <- now()
+this_moment
+second(this_moment)
+my_date <- ymd("1989-05-17")
+my_date
+class(my_date)
+ymd("1989 May 17")
+mdy("March 12, 1975")
+dmy(25081985)
+ymd("1920/1/2")
+dt1 <- "2014-08-23 17:23:02"
+ymd_hms(dt1)
+hms("03:22:14")
+dt2<-c("2014-05-14","2014-09-22","2014-07-11")
+ymd(dt2)
+update(this_moment, hours = 8, minutes = 34, seconds = 55)
+this_moment
+this_moment <- update(this_moment, hours = 10, minutes = 16, seconds = 0)
+nyc <- now("America/New_York")
+depart <- nyc + days(2)
+depart <- update(depart, hours = 17, minutes = 34)
+arrive <- depart + hours(15) + minutes(50)
+arrive <- with_tz(arrive, "Asia/Hong_Kong")
+last_time <- mdy("June 17, 2008", tz = "Singapore")
+how_long <- interval(last_time, arrive)
+as.period(how_long)
+```
